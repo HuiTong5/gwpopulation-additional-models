@@ -8,8 +8,8 @@ import scipy.special as scs
 
 from gwpopulation.utils import powerlaw, truncnorm
 from gwpopulation.models.mass import BaseSmoothedMassDistribution, double_power_law_primary_mass
-
-xp = np
+from gwpopulation.cupy_utils import xp
+# xp = np
 
 def double_power_law_two_peak_primary_mass(
     mass,
@@ -218,7 +218,7 @@ def double_power_law_two_peak_primary_mass1(
     prob = (1 - lam1) * p_pow + lam1 * lam_11 * p_norm1 + lam1 * (1 - lam_11) * p_norm2
     return prob
 
-class BaseSmoothedMassDistribution1:
+class BaseSmoothedMassDistribution(object):
     """
     Generic smoothed mass distribution base class.
 
@@ -242,7 +242,7 @@ class BaseSmoothedMassDistribution1:
             "variable_names",
             inspect.getfullargspec(self.primary_model).args[1:],
         )
-        vars += ["beta1", "delta_m1"]
+        vars += ["beta", "delta_m"]
         vars = set(vars).difference(self.kwargs.keys())
         return vars
 
@@ -250,7 +250,7 @@ class BaseSmoothedMassDistribution1:
     def kwargs(self):
         return dict()
 
-    def __init__(self, mmin=2, mmax=100, normalization_shape=(1000, 500), cache=True):
+    def __init__(self, mmin=2, mmax=100, normalization_shape=(1000, 500)):
         self.mmin = mmin
         self.mmax = mmax
         self.m1s = xp.linspace(mmin, mmax, normalization_shape[0])
@@ -258,30 +258,28 @@ class BaseSmoothedMassDistribution1:
         self.dm = self.m1s[1] - self.m1s[0]
         self.dq = self.qs[1] - self.qs[0]
         self.m1s_grid, self.qs_grid = xp.meshgrid(self.m1s, self.qs)
-        self.cache = cache
 
     def __call__(self, dataset, *args, **kwargs):
-        beta = kwargs.pop("beta1")
-        mmin = kwargs.get("mmin1", self.mmin)
-        mmax = kwargs.get("mmax1", self.mmax)
-        if "jax" not in xp.__name__:
-            if mmin < self.mmin:
-                raise ValueError(
-                    "{self.__class__}: mmin ({mmin}) < self.mmin ({self.mmin})"
-                )
-            if mmax > self.mmax:
-                raise ValueError(
-                    "{self.__class__}: mmax ({mmax}) > self.mmax ({self.mmax})"
-                )
-        delta_m = kwargs.get("delta_m1", 0)
+        beta = kwargs.pop("beta")
+        mmin = kwargs.get("mmin", self.mmin)
+        mmax = kwargs.get("mmax", self.mmax)
+        if mmin < self.mmin:
+            raise ValueError(
+                "{self.__class__}: mmin ({mmin}) < self.mmin ({self.mmin})"
+            )
+        if mmax > self.mmax:
+            raise ValueError(
+                "{self.__class__}: mmax ({mmax}) > self.mmax ({self.mmax})"
+            )
+        delta_m = kwargs.get("delta_m", 0)
         p_m1 = self.p_m1(dataset, **kwargs, **self.kwargs)
         p_q = self.p_q(dataset, beta=beta, mmin=mmin, delta_m=delta_m)
         prob = p_m1 * p_q
         return prob
 
     def p_m1(self, dataset, **kwargs):
-        mmin = kwargs.get("mmin1", self.mmin)
-        delta_m = kwargs.pop("delta_m1", 0)
+        mmin = kwargs.get("mmin", self.mmin)
+        delta_m = kwargs.pop("delta_m", 0)
         p_m = self.__class__.primary_model(dataset["mass_1"], **kwargs)
         p_m *= self.smoothing(
             dataset["mass_1"], mmin=mmin, mmax=self.mmax, delta_m=delta_m
@@ -291,13 +289,13 @@ class BaseSmoothedMassDistribution1:
 
     def norm_p_m1(self, delta_m, **kwargs):
         """Calculate the normalisation factor for the primary mass"""
-        mmin = kwargs.get("mmin1", self.mmin)
-        if "jax" not in xp.__name__ and delta_m == 0:
+        mmin = kwargs.get("mmin", self.mmin)
+        if delta_m == 0:
             return 1
         p_m = self.__class__.primary_model(self.m1s, **kwargs)
         p_m *= self.smoothing(self.m1s, mmin=mmin, mmax=self.mmax, delta_m=delta_m)
 
-        norm = xp.where(xp.array(delta_m) > 0, xp.trapz(p_m, self.m1s), 1)
+        norm = trapz(p_m, self.m1s)
         return norm
 
     def p_q(self, dataset, beta, mmin, delta_m):
@@ -308,13 +306,8 @@ class BaseSmoothedMassDistribution1:
             mmax=dataset["mass_1"],
             delta_m=delta_m,
         )
-
         try:
-            if self.cache:
-                p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
-            else:
-                self._cache_q_norms(dataset["mass_1"])
-                p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
+            p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
         except (AttributeError, TypeError, ValueError):
             self._cache_q_norms(dataset["mass_1"])
             p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
@@ -323,28 +316,35 @@ class BaseSmoothedMassDistribution1:
 
     def norm_p_q(self, beta, mmin, delta_m):
         """Calculate the mass ratio normalisation by linear interpolation"""
+        if delta_m == 0.0:
+            return 1
         p_q = powerlaw(self.qs_grid, beta, 1, mmin / self.m1s_grid)
         p_q *= self.smoothing(
             self.m1s_grid * self.qs_grid, mmin=mmin, mmax=self.m1s_grid, delta_m=delta_m
         )
-        norms = xp.where(
-            xp.array(delta_m) > 0,
-            xp.nan_to_num(xp.trapz(p_q, self.qs, axis=0)),
-            xp.ones(self.m1s.shape),
+        norms = trapz(p_q, self.qs, axis=0)
+
+        all_norms = (
+            norms[self.n_below] * (1 - self.step) + norms[self.n_above] * self.step
         )
 
-        return self._q_interpolant(norms)
+        return all_norms
 
     def _cache_q_norms(self, masses):
         """
         Cache the information necessary for linear interpolation of the mass
         ratio normalisation
         """
-        from gwpopulation.models.interped import _setup_interpolant
-
-        self._q_interpolant = _setup_interpolant(
-            self.m1s, masses, kind="cubic", backend=xp
-        )
+        self.n_below = xp.zeros_like(masses, dtype=int) - 1
+        m_below = xp.zeros_like(masses)
+        for mm in self.m1s:
+            self.n_below += masses > mm
+            m_below[masses > mm] = mm
+        self.n_above = self.n_below + 1
+        max_idx = len(self.m1s)
+        self.n_below[self.n_below < 0] = 0
+        self.n_above[self.n_above == max_idx] = max_idx - 1
+        self.step = xp.minimum((masses - m_below) / self.dm, 1)
 
     @staticmethod
     def smoothing(masses, mmin, mmax, delta_m):
@@ -363,15 +363,18 @@ class BaseSmoothedMassDistribution1:
 
         See also, https://en.wikipedia.org/wiki/Window_function#Planck-taper_window
         """
-        if "jax" in xp.__name__ or delta_m > 0.0:
-            shifted_mass = xp.nan_to_num((masses - mmin) / delta_m, nan=0)
-            shifted_mass = xp.clip(shifted_mass, 1e-6, 1 - 1e-6)
-            exponent = 1 / shifted_mass - 1 / (1 - shifted_mass)
-            window = scs.expit(-exponent)
-            window *= (masses >= mmin) * (masses <= mmax)
-            return window
-        else:
-            return xp.ones(masses.shape)
+        window = xp.ones_like(masses)
+        if delta_m > 0.0:
+            smoothing_region = (masses >= mmin) & (masses < (mmin + delta_m))
+            shifted_mass = masses[smoothing_region] - mmin
+            if shifted_mass.size:
+                exponent = xp.nan_to_num(
+                    delta_m / shifted_mass + delta_m / (shifted_mass - delta_m)
+                )
+                window[smoothing_region] = 1 / (xp.exp(exponent) + 1)
+        window[(masses < mmin) | (masses > mmax)] = 0
+        return window
+
 
 class MultiPeakBrokenPowerLawSmoothedMassDistribution1(BaseSmoothedMassDistribution1):
     """
