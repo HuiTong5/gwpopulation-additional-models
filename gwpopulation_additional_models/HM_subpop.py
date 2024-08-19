@@ -82,17 +82,14 @@ class Chieff_BaseSmoothedMassDistribution:
         prob = p_m1 * p_q
         return prob
 
-    def p_Uniform_chi_eff(chi_eff, width):
+    def p_Uniform_chi_eff(self, chi_eff, width):
 
         return 1/(2*width)* (chi_eff>=-width)* (chi_eff<=width)
 
     def p_chi_eff(self, dataset, m_t, w, log_sigma_chi_eff_low, mu_chi_eff_low,log_sigma_chi_eff_high, mu_chi_eff_high, xi_chi_eff):
         
-        above = (dataset["mass_1"] >= m_t)
-        below = ~above
-        p_chi_eff = xp.ones_like(dataset["mass_1"])
-        p_chi_eff[below] *= truncnorm(dataset["chi_eff"][below], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
-        p_chi_eff[above] *= xi_chi_eff*self.p_Uniform_chi_eff(dataset["chi_eff"][above],w) + (1-xi_chi_eff)*truncnorm(dataset["chi_eff"][above], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1)
+        p_chi_eff = (dataset["mass_1"] <= m_t) * truncnorm(dataset["chi_eff"], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
+        p_chi_eff += (dataset["mass_1"] > m_t) * (xi_chi_eff*self.p_Uniform_chi_eff(dataset["chi_eff"],w) + (1-xi_chi_eff)*truncnorm(dataset["chi_eff"], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1))
 
         return p_chi_eff
 
