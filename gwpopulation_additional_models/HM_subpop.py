@@ -158,7 +158,7 @@ class Chieff_BaseSmoothedMassDistribution:
         Cache the information necessary for linear interpolation of the mass
         ratio normalisation
         """
-        from .interped import _setup_interpolant
+        from gwpopulation.models.interped import _setup_interpolant
 
         self._q_interpolant = _setup_interpolant(
             self.m1s, masses, kind="linear", backend=xp
