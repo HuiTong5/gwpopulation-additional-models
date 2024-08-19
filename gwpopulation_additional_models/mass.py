@@ -8,7 +8,7 @@ import numpy as np
 import scipy.special as scs
 
 from gwpopulation.utils import powerlaw, truncnorm
-from gwpopulation.models.mass import BaseSmoothedMassDistribution, power_law_primary_mass_ratio
+from gwpopulation.models.mass import BaseSmoothedMassDistribution, power_law_mass
 
 xp = np
 
@@ -50,7 +50,7 @@ class PowerLawSmoothedMassDistribution(BaseSmoothedMassDistribution):
     This means that the `mmax` parameter is _not_ the global maximum.
     """
 
-    primary_model = power_law_primary_mass_ratio
+    primary_model = power_law_mass
 
 class GaussianSmoothedMassDistribution(BaseSmoothedMassDistribution):
     """
