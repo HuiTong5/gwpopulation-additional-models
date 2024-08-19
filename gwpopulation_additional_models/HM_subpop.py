@@ -35,7 +35,7 @@ class Chieff_BaseSmoothedMassDistribution:
             "variable_names",
             inspect.getfullargspec(self.primary_model).args[1:],
         )
-        vars += ["beta", "delta_m", "m_t", "w", "sigma_chi_eff_low", "mu_chi_eff_low", "sigma_chi_eff_high", "mu_chi_eff_high", "xi_chi_eff"]
+        vars += ["beta", "delta_m", "m_t", "w", "log_sigma_chi_eff_low", "mu_chi_eff_low", "log_sigma_chi_eff_high", "mu_chi_eff_high", "xi_chi_eff"]
         vars = set(vars).difference(self.kwargs.keys())
         return vars
 
@@ -59,9 +59,9 @@ class Chieff_BaseSmoothedMassDistribution:
         mmax = kwargs.get("mmax", self.mmax)
         m_t = kwargs.pop("m_t")
         w = kwargs.pop("w")
-        sigma_chi_eff_low = kwargs.pop("sigma_chi_eff_low")
+        log_sigma_chi_eff_low = kwargs.pop("log_sigma_chi_eff_low")
         mu_chi_eff_low = kwargs.pop("mu_chi_eff_low")
-        sigma_chi_eff_high = kwargs.pop("sigma_chi_eff_high")
+        log_sigma_chi_eff_high = kwargs.pop("log_sigma_chi_eff_high")
         mu_chi_eff_high = kwargs.pop("mu_chi_eff_high")
         xi_chi_eff = kwargs.pop("xi_chi_eff")
 
@@ -77,7 +77,7 @@ class Chieff_BaseSmoothedMassDistribution:
         delta_m = kwargs.get("delta_m", 0)
         p_m1 = self.p_m1(dataset, **kwargs, **self.kwargs)
         p_q = self.p_q(dataset, beta=beta, mmin=mmin, delta_m=delta_m)
-        p_chi_eff = self.p_chi_eff(dataset, m_t=m_t, w=w, sigma_chi_eff_low=sigma_chi_eff_low, mu_chi_eff_low=mu_chi_eff_low, sigma_chi_eff_high=sigma_chi_eff_high, mu_chi_eff_high=mu_chi_eff_high, xi_chi_eff=xi_chi_eff)
+        p_chi_eff = self.p_chi_eff(dataset, m_t=m_t, w=w, log_sigma_chi_eff_low=log_sigma_chi_eff_low, mu_chi_eff_low=mu_chi_eff_low, log_sigma_chi_eff_high=log_sigma_chi_eff_high, mu_chi_eff_high=mu_chi_eff_high, xi_chi_eff=xi_chi_eff)
 
         prob = p_m1 * p_q
         return prob
@@ -86,13 +86,13 @@ class Chieff_BaseSmoothedMassDistribution:
 
         return 1/(2*width)* (chi_eff>=-width)* (chi_eff<=width)
 
-    def p_chi_eff(self, dataset, m_t, w, sigma_chi_eff_low, mu_chi_eff_low, sigma_chi_eff_high, mu_chi_eff_high, xi_chi_eff):
+    def p_chi_eff(self, dataset, m_t, w, log_sigma_chi_eff_low, mu_chi_eff_low,log_sigma_chi_eff_high, mu_chi_eff_high, xi_chi_eff):
         
         above = (dataset["mass_1"] >= m_t)
         below = ~above
         p_chi_eff = xp.ones_like(dataset["mass_1"])
-        p_chi_eff[below] *= truncnorm(data["chi_eff"][below], mu_chi_eff_low, sigma_chi_eff_low, 1, -1)
-        p_chi_eff[above] *= xi_chi_eff*self.p_Uniform_chi_eff(data["chi_eff"][above],w) + (1-xi_chi_eff)*truncnorm(data["chi_eff"][above], mu_chi_eff_high, sigma_chi_eff_high, 1, -1)
+        p_chi_eff[below] *= truncnorm(data["chi_eff"][below], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
+        p_chi_eff[above] *= xi_chi_eff*self.p_Uniform_chi_eff(data["chi_eff"][above],w) + (1-xi_chi_eff)*truncnorm(data["chi_eff"][above], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1)
 
         return p_chi_eff
 
@@ -270,7 +270,7 @@ def double_power_law_two_peak_primary_mass(
     prob = (1 - lam) * p_pow + lam * lam_1 * p_norm1 + lam * (1 - lam_1) * p_norm2
     return prob
 
-class MultiPeakBrokenPowerLawSmoothedMassDistribution(Chieff_BaseSmoothedMassDistribution):
+class Chieff_MultiPeakBrokenPowerLawSmoothedMassDistribution(Chieff_BaseSmoothedMassDistribution):
     """
     Broken power law for two-dimensional mass distribution with low
     mass smoothing.
