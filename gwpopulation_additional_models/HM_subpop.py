@@ -91,8 +91,8 @@ class Chieff_BaseSmoothedMassDistribution:
         above = (dataset["mass_1"] >= m_t)
         below = ~above
         p_chi_eff = xp.ones_like(dataset["mass_1"])
-        p_chi_eff[below] *= truncnorm(data["chi_eff"][below], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
-        p_chi_eff[above] *= xi_chi_eff*self.p_Uniform_chi_eff(data["chi_eff"][above],w) + (1-xi_chi_eff)*truncnorm(data["chi_eff"][above], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1)
+        p_chi_eff[below] *= truncnorm(dataset["chi_eff"][below], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
+        p_chi_eff[above] *= xi_chi_eff*self.p_Uniform_chi_eff(dataset["chi_eff"][above],w) + (1-xi_chi_eff)*truncnorm(dataset["chi_eff"][above], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1)
 
         return p_chi_eff
 
