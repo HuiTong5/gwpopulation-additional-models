@@ -28,8 +28,8 @@ class Transition_chi_eff:
     def p_Uniform_chi_eff(self, chi_eff, width):
 
         p = 1/(2*width)
-        p += (chi_eff<-width) * (xp.exp(-(xp.abs(chi_eff)-w)**2/(2*0.1**2))-(1/(2*width)))
-        p += (chi_eff>width) * (xp.exp(-(xp.abs(chi_eff)-w)**2/(2*0.1**2))-(1/(2*width)))
+        p += (chi_eff<-width) * (xp.exp(-(xp.abs(chi_eff)-width)**2/(2*0.1**2))-(1/(2*width)))
+        p += (chi_eff>width) * (xp.exp(-(xp.abs(chi_eff)-width)**2/(2*0.1**2))-(1/(2*width)))
         return p
 
 
