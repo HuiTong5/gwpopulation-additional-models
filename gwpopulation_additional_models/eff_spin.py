@@ -11,7 +11,7 @@ class Transition_chi_eff:
         vars = ["m_t", "w", "log_sigma_chi_eff_low", "mu_chi_eff_low", "log_sigma_chi_eff_high", "mu_chi_eff_high", "xi_chi_eff"]
         return vars
 
-    def call(self, dataset, *args, **kwargs):
+    def __call__(self, dataset, *args, **kwargs):
         m_t = kwargs['m_t']
         w = kwargs['w']
         log_sigma_chi_eff_low = kwargs['log_sigma_chi_eff_low']
