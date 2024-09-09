@@ -20,8 +20,8 @@ class Transition_chi_eff:
         mu_chi_eff_high = kwargs['mu_chi_eff_high']
         xi_chi_eff = kwargs['xi_chi_eff']
 
-        p_chi = (dataset['mass_1']<m_t) * truncnorm(dataset['chi_eff'], mu_chi_eff_low, np.exp(log_sigma_chi_eff_low), 1, -1)
-        p_chi += (dataset['mass_1']>=m_t) * (xi_chi_eff* self.p_Uniform_chi_eff(dataset['chi_eff'], w)+ (1-xi_chi_eff)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, np.exp(log_sigma_chi_eff_high), 1, -1))
+        p_chi = (dataset['mass_1']<m_t) * truncnorm(dataset['chi_eff'], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
+        p_chi += (dataset['mass_1']>=m_t) * (xi_chi_eff* self.p_Uniform_chi_eff(dataset['chi_eff'], w)+ (1-xi_chi_eff)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1))
 
         return p_chi
     
@@ -73,11 +73,11 @@ class MadauDickinsonRedshift(_Redshift):
 def total_four_volume(lamb, analysis_time, max_redshift=2.3):
     from astropy.cosmology import Planck15
 
-    redshifts = np.linspace(0, max_redshift, 1000)
+    redshifts = xp.linspace(0, max_redshift, 1000)
     psi_of_z = (1 + redshifts) ** lamb
-    normalization = 4 * np.pi / 1e9 * analysis_time
+    normalization = 4 * xp.pi / 1e9 * analysis_time
     total_volume = (
-        np.trapz(
+        xp.trapz(
             Planck15.differential_comoving_volume(redshifts).value
             / (1 + redshifts)
             * psi_of_z,
