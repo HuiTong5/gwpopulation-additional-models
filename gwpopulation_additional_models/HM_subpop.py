@@ -7,7 +7,7 @@ import inspect
 import numpy as np
 import scipy.special as scs
 from gwpopulation.utils import powerlaw, truncnorm
-from gwpopulation.models.mass import double_power_law_primary_mass
+from gwpopulation.models.mass import double_power_law_primary_mass, BaseSmoothedMassDistribution
 
 xp = np
 
@@ -266,6 +266,55 @@ def double_power_law_two_peak_primary_mass(
     )
     prob = (1 - lam) * p_pow + lam * lam_1 * p_norm1 + lam * (1 - lam_1) * p_norm2
     return prob
+
+class MultiPeakBrokenPowerLawSmoothedMassDistribution(BaseSmoothedMassDistribution):
+    """
+    Broken power law for two-dimensional mass distribution with low
+    mass smoothing.
+
+    Parameters
+    ----------
+    dataset: dict
+        Dictionary of numpy arrays for 'mass_1' and 'mass_ratio'.
+    alpha_1: float
+        Powerlaw exponent for more massive black hole below break.
+    alpha_2: float
+        Powerlaw exponent for more massive black hole above break.
+    beta: float
+        Power law exponent of the mass ratio distribution.
+    break_fraction: float
+        Fraction between mmin and mmax primary mass distribution breaks at.
+    mmin: float
+        Minimum black hole mass.
+    mmax: float
+        Maximum mass in the powerlaw distributed component.
+    lam: float
+        Fraction of black holes in the Gaussian components.
+    lam_1: float
+        Fraction of black holes in the lower mass Gaussian component.
+    mpp_1: float
+        Mean of the lower mass Gaussian component.
+    mpp_2: float
+        Mean of the upper mass Gaussian component.
+    sigpp_1: float
+        Standard deviation of the lower mass Gaussian component.
+    sigpp_2: float
+        Standard deviation of the upper mass Gaussian component.
+    delta_m: float
+        Rise length of the low end of the mass distribution.
+
+    Notes
+    -----
+    The Gaussian component is bounded between [`mmin`, `self.mmax`].
+    This means that the `mmax` parameter is _not_ the global maximum.
+    """
+
+    primary_model = double_power_law_two_peak_primary_mass
+
+    @property
+    def kwargs(self):
+        return dict(gaussian_mass_maximum=self.mmax)
+
 
 class Chieff_MultiPeakBrokenPowerLawSmoothedMassDistribution(Chieff_BaseSmoothedMassDistribution):
     """
