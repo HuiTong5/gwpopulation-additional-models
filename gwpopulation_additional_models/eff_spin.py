@@ -86,3 +86,36 @@ def total_four_volume(lamb, analysis_time, max_redshift=2.3):
         * normalization
     )
     return total_volume
+
+def smoothed_uniform(x, w):
+
+    return (1/2)*(xp.tanh(10*(x+w))-xp.tanh(10*(x-w))) / (2*w)
+
+class Smoothed_transition_chi_eff:
+    @property
+    def variable_names(self):
+        vars = ["m_t", "w", "log_sigma_chi_eff_low", "mu_chi_eff_low", "log_sigma_chi_eff_high", "mu_chi_eff_high", "xi_chi_eff"]
+        return vars
+
+    def __call__(self, dataset, *args, **kwargs):
+        m_t = kwargs['m_t']
+        w = kwargs['w']
+        log_sigma_chi_eff_low = kwargs['log_sigma_chi_eff_low']
+        mu_chi_eff_low = kwargs['mu_chi_eff_low']
+        log_sigma_chi_eff_high = kwargs['log_sigma_chi_eff_high']
+        mu_chi_eff_high = kwargs['mu_chi_eff_high']
+        xi_chi_eff = kwargs['xi_chi_eff']
+
+        f_HM = self.smoothed_transition_factor(dataset['mass_1'], m_t) # The fraction of mergers above m_t
+        f_uniform = self.xi_smoothed_transition_factor(dataset['mass_1'], m_t, xi_chi_eff)# The fraction of uniform spin megers within the mergers above m_t? Why?
+        p_chi = f_HM*(f_uniform*smoothed_uniform(dataset['chi_eff'],w)+(1-f_uniform)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1))+(1-f_HM)*truncnorm(dataset['chi_eff'], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
+        
+        return p_chi
+    
+    def smoothed_transition_factor(self, m1, m_t):
+        # the fraction of mergers above mt
+        return (1+xp.exp(-(m1-m_t)))**(-1)
+
+    def xi_smoothed_transition_factor(self, m1, m_t, xi_chi_eff):
+        # the fraction of mergers above mt
+        return xi_chi_eff*(1+xp.exp(-(m1-m_t)*5))**(-1)
