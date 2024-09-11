@@ -20,8 +20,8 @@ class Transition_chi_eff:
         mu_chi_eff_high = kwargs['mu_chi_eff_high']
         xi_chi_eff = kwargs['xi_chi_eff']
 
-        p_chi = (dataset['mass_1']<m_t) * truncnorm(dataset['chi_eff'], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
-        p_chi += (dataset['mass_1']>=m_t) * (xi_chi_eff* self.p_Uniform_chi_eff(dataset['chi_eff'], w)+ (1-xi_chi_eff)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1))
+        p_chi = (dataset['mass_1']<m_t) * truncnorm(dataset['chi_eff'], mu_chi_eff_low, 10**(log_sigma_chi_eff_low), 1, -1)
+        p_chi += (dataset['mass_1']>=m_t) * (xi_chi_eff* self.p_Uniform_chi_eff(dataset['chi_eff'], w)+ (1-xi_chi_eff)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, 10**(log_sigma_chi_eff_high), 1, -1))
 
         return p_chi
     
@@ -71,14 +71,17 @@ class MadauDickinsonRedshift(_Redshift):
 
 
 def total_four_volume(lamb, analysis_time, max_redshift=2.3):
-    from astropy.cosmology import Planck15
+    from wcosmo.astropy import Planck15
+    from wcosmo.utils import disable_units
 
-    redshifts = xp.linspace(0, max_redshift, 1000)
+    disable_units()
+
+    redshifts = xp.linspace(0, max_redshift, 2500)
     psi_of_z = (1 + redshifts) ** lamb
     normalization = 4 * xp.pi / 1e9 * analysis_time
     total_volume = (
         xp.trapz(
-            Planck15.differential_comoving_volume(redshifts).value
+            Planck15.differential_comoving_volume(redshifts)
             / (1 + redshifts)
             * psi_of_z,
             redshifts,
@@ -108,7 +111,7 @@ class Smoothed_transition_chi_eff:
 
         f_HM = self.smoothed_transition_factor(dataset['mass_1'], m_t) # The fraction of mergers above m_t
         f_uniform = self.xi_smoothed_transition_factor(dataset['mass_1'], m_t, xi_chi_eff)# The fraction of uniform spin megers within the mergers above m_t? Why?
-        p_chi = f_HM*(f_uniform*smoothed_uniform(dataset['chi_eff'],w)+(1-f_uniform)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, xp.exp(log_sigma_chi_eff_high), 1, -1))+(1-f_HM)*truncnorm(dataset['chi_eff'], mu_chi_eff_low, xp.exp(log_sigma_chi_eff_low), 1, -1)
+        p_chi = f_HM*(f_uniform*smoothed_uniform(dataset['chi_eff'],w)+(1-f_uniform)*truncnorm(dataset['chi_eff'], mu_chi_eff_high, 10**(log_sigma_chi_eff_high), 1, -1))+(1-f_HM)*truncnorm(dataset['chi_eff'], mu_chi_eff_low, 10**(log_sigma_chi_eff_low), 1, -1)
         
         return p_chi
     
