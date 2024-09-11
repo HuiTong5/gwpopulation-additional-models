@@ -701,19 +701,20 @@ class Broken_q_BaseSmoothedMassDistribution:
 
         try:
             if self.cache:
-                p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
+                p_q /= self.norm_p_q(beta_low=beta_low, beta_high=beta_high, m_t=m_t, mmin=mmin, delta_m=delta_m)
             else:
                 self._cache_q_norms(dataset["mass_1"])
-                p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
+                p_q /= self.norm_p_q(beta_low=beta_low, beta_high=beta_high, m_t=m_t, mmin=mmin, delta_m=delta_m)
         except (AttributeError, TypeError, ValueError):
             self._cache_q_norms(dataset["mass_1"])
-            p_q /= self.norm_p_q(beta=beta, mmin=mmin, delta_m=delta_m)
+            p_q /= self.norm_p_q(beta_low=beta_low, beta_high=beta_high, m_t=m_t, mmin=mmin, delta_m=delta_m)
 
         return xp.nan_to_num(p_q)
 
-    def norm_p_q(self, beta, mmin, delta_m):
+    def norm_p_q(self,  beta_low, beta_high, m_t, mmin, delta_m):
         """Calculate the mass ratio normalisation by linear interpolation"""
-        p_q = powerlaw(self.qs_grid, beta, 1, mmin / self.m1s_grid)
+        f_HM = self.smoothed_transition_factor(self.m1s_grid, m_t)
+        p_q = f_HM*powerlaw(self.qs_grid, beta_high, 1, mmin / self.m1s_grid)+(1-f_HM)*powerlaw(self.qs_grid, beta_low, 1, mmin / self.m1s_grid)
         p_q *= self.smoothing(
             self.m1s_grid * self.qs_grid, mmin=mmin, mmax=self.m1s_grid, delta_m=delta_m
         )
