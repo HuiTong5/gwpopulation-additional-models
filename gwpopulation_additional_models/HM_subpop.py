@@ -657,9 +657,8 @@ class Broken_q_BaseSmoothedMassDistribution:
         delta_m = kwargs.get("delta_m", 0)
         p_m1 = self.p_m1(dataset, **kwargs, **self.kwargs)
         p_q = self.p_q(dataset, beta_low=beta_low, beta_high=beta_high, m_t=m_t, mmin=mmin, delta_m=delta_m)
-        p_chi_eff = self.p_chi_eff(dataset, m_t=m_t, w=w, log_sigma_chi_eff_low=log_sigma_chi_eff_low, mu_chi_eff_low=mu_chi_eff_low, log_sigma_chi_eff_high=log_sigma_chi_eff_high, mu_chi_eff_high=mu_chi_eff_high, xi_chi_eff=xi_chi_eff)
-
-        prob = p_m1 * p_q * p_chi_eff
+    
+        prob = p_m1 * p_q
         return prob
 
     def p_m1(self, dataset, **kwargs):
@@ -685,13 +684,8 @@ class Broken_q_BaseSmoothedMassDistribution:
         )
         return norm
 
-    def smoothed_transition_factor(self, m1, m_t):
-        # the fraction of mergers above mt
-        return (1+xp.exp(-(m1-m_t)))**(-1)
-
     def p_q(self, dataset, beta_low, beta_high, m_t, mmin, delta_m):
-        f_HM = self.smoothed_transition_factor(dataset['mass_1'], m_t) # The fraction of mergers above m_t
-        p_q = f_HM*powerlaw(dataset["mass_ratio"], beta_high, 1, mmin / dataset["mass_1"])+(1-f_HM)*powerlaw(dataset["mass_ratio"], beta_low, 1, mmin / dataset["mass_1"])
+        p_q = xp.where(dataset["mass_1"]<=m_t, powerlaw(dataset["mass_ratio"], beta_low, 1, mmin / dataset["mass_1"]), powerlaw(dataset["mass_ratio"], beta_high, 1, mmin / dataset["mass_1"]))
         p_q *= self.smoothing(
             dataset["mass_1"] * dataset["mass_ratio"],
             mmin=mmin,
@@ -713,8 +707,7 @@ class Broken_q_BaseSmoothedMassDistribution:
 
     def norm_p_q(self,  beta_low, beta_high, m_t, mmin, delta_m):
         """Calculate the mass ratio normalisation by linear interpolation"""
-        f_HM = self.smoothed_transition_factor(self.m1s_grid, m_t)
-        p_q = f_HM*powerlaw(self.qs_grid, beta_high, 1, mmin / self.m1s_grid)+(1-f_HM)*powerlaw(self.qs_grid, beta_low, 1, mmin / self.m1s_grid)
+        p_q = xp.where(self.m1s_grid<=m_t, powerlaw(self.qs_grid, beta_low, 1, mmin / self.m1s_grid), powerlaw(self.qs_grid, beta_high, 1, mmin / self.m1s_grid))
         p_q *= self.smoothing(
             self.m1s_grid * self.qs_grid, mmin=mmin, mmax=self.m1s_grid, delta_m=delta_m
         )
