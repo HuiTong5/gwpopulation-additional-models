@@ -33,12 +33,14 @@ class multi_CosmoMixin:
         self.suffix=suffix
         if self.cosmo_model == "FlatwCDM":
             if suffix != None:
-                self.cosmology_names = ["H0_{self.suffix}", "Om0_{self.suffix}", "w0_{self.suffix}"]
+                # self.cosmology_names = ["H0_{self.suffix}", "Om0_{self.suffix}", "w0_{self.suffix}"]
+                self.cosmology_names = ["H0_{self.suffix}", "Om0", "w0"]
             else:
                 self.cosmology_names = ["H0", "Om0_mass", "w0_mass"]
         elif self.cosmo_model == "FlatLambdaCDM":
             if suffix != None:
-                self.cosmology_names = ["H0_{self.suffix}", "Om0_{self.suffix}"]
+                # self.cosmology_names = ["H0_{self.suffix}", "Om0_{self.suffix}"]
+                self.cosmology_names = ["H0_{self.suffix}", "Om0"]
             else:
                 self.cosmology_names = ["H0_mass", "Om0_mass"]
         else:
@@ -68,52 +70,6 @@ class multi_CosmoMixin:
                 cosmology_variables={key:parameters[key] for key in self.cosmology_names}
             return self._cosmo(**cosmology_variables)
 
-    # def detector_frame_to_source_frame(self, data, **parameters):
-    #     r"""
-    #     Convert detector frame samples to sourece frame samples given cosmological
-    #     parameters. Calculate the corresponding
-    #     :math:`\frac{d \theta_{\rm detector}}{d \theta_{\rm source}}` Jacobian term.
-    #     This includes factors of :math:`(1 + z)` for redshifted quantities.
-
-    #     Parameters
-    #     ==========
-    #     data: dict
-    #         Dictionary containing the samples in detector frame.
-    #     parameters: dict
-    #         The cosmological parameters for relevant cosmology model.
-
-    #     Returns
-    #     =======
-    #     samples: dict
-    #         Dictionary containing the samples in source frame.
-    #     jacobian: array-like
-    #         The Jacobian term.
-    #     """
-
-    #     samples = dict()
-    #     if "luminosity_distance" in data.keys():
-    #         cosmo = self.cosmology(self.parameters)
-    #         samples["redshift"] = z_at_value(
-    #             cosmo.luminosity_distance,
-    #             data["luminosity_distance"],
-    #         )
-    #         jacobian = cosmo.dDLdz(samples["redshift"])
-    #     elif "redshift" not in data:
-    #         raise ValueError(
-    #             f"Either luminosity distance or redshift provided in detector frame to source frame samples conversion"
-    #         )
-    #     else:
-    #         jacobian = xp.ones(data["redshift"].shape)
-
-    #     for key in list(data.keys()):
-    #         if key.endswith("_detector"):
-    #             samples[key[:-9]] = data[key] / (1 + samples["redshift"])
-    #             jacobian *= 1 + samples["redshift"]
-    #         elif key != "luminosity_distance":
-    #             samples[key] = data[key]
-
-    #     return samples, jacobian
-
 class cosmo_SinglePeakSmoothedMassDistribution(SinglePeakSmoothedMassDistribution, multi_CosmoMixin):
     @property
     def variable_names(self):
@@ -127,7 +83,7 @@ class cosmo_SinglePeakSmoothedMassDistribution(SinglePeakSmoothedMassDistributio
         vars = set(vars).difference(self.kwargs.keys())
         return vars
 
-    def __init__(self, cosmo_model, suffix, mmin=2, mmax=100, cache=False):
+    def __init__(self, cosmo_model, suffix=None, mmin=2, mmax=100, cache=False):
         SinglePeakSmoothedMassDistribution.__init__(self, mmin=mmin, mmax=mmax, cache=cache)
         multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
 
@@ -164,7 +120,7 @@ class cosmo_SinglePeakSmoothedMassDistribution(SinglePeakSmoothedMassDistributio
         return prob #detector frame mass probability p(m1d,q|dL, H0_m)
         
 class cosmo_MadauDickinsonRedshift(MadauDickinsonRedshift, multi_CosmoMixin):
-    def __init__(self, z_max, cosmo_model, suffix=suffix):
+    def __init__(self, z_max, cosmo_model, suffix=None):
         multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
         self.z_max = z_max
         self.zs = xp.linspace(1e-6, z_max, 2500)
@@ -218,7 +174,7 @@ class cosmo_Smoothed_transition_chi_eff(Smoothed_transition_chi_eff, multi_Cosmo
         vars += self.cosmology_names
         return vars
 
-    def __init__(self, cosmo_model, suffix=suffix):
+    def __init__(self, cosmo_model, suffix=None):
         multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
 
     def __call__(self, dataset, *args, **kwargs):
