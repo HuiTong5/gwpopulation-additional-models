@@ -7,12 +7,14 @@ can be used to add cosmological functionality to a population model.
 """
 
 import numpy as xp
+import inspect
 from wcosmo import z_at_value
 from wcosmo.astropy import WCosmoMixin, available
 from wcosmo.utils import disable_units as wcosmo_disable_units
 from gwpopulation.models.mass import SinglePeakSmoothedMassDistribution
 from gwpopulation.models.redshift import MadauDickinsonRedshift
-from .eff_spin import Smoothed_transition_chi_eff
+from .eff_spin import Smoothed_transition_chi_eff, smoothed_uniform
+from gwpopulation.utils import powerlaw, truncnorm
 
 
 
@@ -34,15 +36,15 @@ class multi_CosmoMixin:
         if self.cosmo_model == "FlatwCDM":
             if suffix != None:
                 # self.cosmology_names = ["H0_{self.suffix}", "Om0_{self.suffix}", "w0_{self.suffix}"]
-                self.cosmology_names = ["H0_{self.suffix}", "Om0", "w0"]
+                self.cosmology_names = [f"H0_{self.suffix}", "Om0", "w0"]
             else:
-                self.cosmology_names = ["H0", "Om0_mass", "w0_mass"]
+                self.cosmology_names = ["H0", "Om0", "w0"]
         elif self.cosmo_model == "FlatLambdaCDM":
             if suffix != None:
                 # self.cosmology_names = ["H0_{self.suffix}", "Om0_{self.suffix}"]
-                self.cosmology_names = ["H0_{self.suffix}", "Om0"]
+                self.cosmology_names = [f"H0_{self.suffix}", "Om0"]
             else:
-                self.cosmology_names = ["H0_mass", "Om0_mass"]
+                self.cosmology_names = ["H0", "Om0"]
         else:
             self.cosmology_names = []
         self._cosmo = available[cosmo_model]
@@ -65,7 +67,10 @@ class multi_CosmoMixin:
             return self._cosmo
         else:
             if self.suffix:
-                cosmology_variables={key[:-(self.suffix+1)]:parameters[key] for key in self.cosmology_names}
+                cosmology_variables = {
+                        (key[:-(len(self.suffix)+1)] if key.endswith(self.suffix) else key): parameters[key]
+                        for key in self.cosmology_names
+                    }
             else:
                 cosmology_variables={key:parameters[key] for key in self.cosmology_names}
             return self._cosmo(**cosmology_variables)
@@ -88,8 +93,16 @@ class cosmo_SinglePeakSmoothedMassDistribution(SinglePeakSmoothedMassDistributio
         multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
 
     def __call__(self, dataset, *args, **kwargs):
-        cosmo = self.cosmology(**kwargs)
-        jacobian = xp.ones(data["mass_1_detector"].shape)
+        cosmo_parameters = dict()
+        for key in self.cosmology_names:
+            cosmo_parameters[key]=kwargs.pop(key)
+        wcosmo_disable_units()
+        # cosmo = available['Planck15']
+        # print(kwargs['beta'])
+        # print(kwargs['H0'])
+        # print(cosmo_parameters)
+        cosmo = self.cosmology(cosmo_parameters)
+        jacobian = xp.ones(dataset["mass_1_detector"].shape)
          #detector to source frame
         pesudo_redshift = z_at_value(
                 cosmo.luminosity_distance,
@@ -113,8 +126,8 @@ class cosmo_SinglePeakSmoothedMassDistribution(SinglePeakSmoothedMassDistributio
                     "{self.__class__}: mmax ({mmax}) > self.mmax ({self.mmax})"
                 )
         delta_m = kwargs.get("delta_m", 0)
-        p_m1 = self.p_m1(dataset, **kwargs, **self.kwargs)
-        p_q = self.p_q(dataset, beta=beta, mmin=mmin, delta_m=delta_m)
+        p_m1 = self.p_m1(samples, **kwargs, **self.kwargs)
+        p_q = self.p_q(samples, beta=beta, mmin=mmin, delta_m=delta_m)
         prob = p_m1 * p_q / jacobian # prob in detector frame
 
         return prob #detector frame mass probability p(m1d,q|dL, H0_m)
@@ -124,6 +137,32 @@ class cosmo_MadauDickinsonRedshift(MadauDickinsonRedshift, multi_CosmoMixin):
         multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
         self.z_max = z_max
         self.zs = xp.linspace(1e-6, z_max, 2500)
+
+    def cosmology(self, parameters):
+        """
+        Return the cosmology model given the parameters.
+
+        Parameters
+        ==========
+        parameters: dict
+            The parameters for the cosmology model.
+
+        Returns
+        =======
+        wcosmo.astropy.WCosmoMixin
+            The cosmology model.
+        """
+        if isinstance(self._cosmo, WCosmoMixin):
+            return self._cosmo
+        else:
+            if self.suffix:
+                cosmology_variables = {
+                        (key[:-(len(self.suffix)+1)] if key.endswith(self.suffix) else key): parameters[key]
+                        for key in self.cosmology_names
+                    }
+            else:
+                cosmology_variables={key:parameters[key] for key in self.cosmology_names}
+            return self._cosmo(**cosmology_variables)
 
     def psi_of_z(self, redshift, **parameters):
         r"""
@@ -149,13 +188,14 @@ class cosmo_MadauDickinsonRedshift(MadauDickinsonRedshift, multi_CosmoMixin):
         kappa = parameters["kappa"]
         z_peak = parameters["z_peak"]
         psi_of_z = (1 + redshift) ** gamma / (
-            1 + ((1 + redshift) / (1 + z_peak)) ** (kappa+gamma)
+            1 + ((1 + redshift) / (1 + z_peak)) ** kappa
         )
-        psi_of_z *= 1 + (1 + z_peak) ** (-kappa-gamma)
+        psi_of_z *= 1 + (1 + z_peak) ** (-kappa)
         return psi_of_z
 
     def __call__(self, dataset, **kwargs):
-        cosmo = self.cosmology(**kwargs)
+        wcosmo_disable_units()
+        cosmo = self.cosmology(kwargs)
         samples=dict()
         samples['redshift']=z_at_value(
                 cosmo.luminosity_distance,
@@ -185,8 +225,8 @@ class cosmo_Smoothed_transition_chi_eff(Smoothed_transition_chi_eff, multi_Cosmo
         log_sigma_chi_eff_high = kwargs['log_sigma_chi_eff_high']
         mu_chi_eff_high = kwargs['mu_chi_eff_high']
         xi_chi_eff = kwargs['xi_chi_eff']
-
-        cosmo = self.cosmology(**kwargs)
+        wcosmo_disable_units()
+        cosmo = self.cosmology(kwargs)
         samples=dict()
         samples['redshift']=z_at_value(
                 cosmo.luminosity_distance,
