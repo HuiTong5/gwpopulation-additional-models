@@ -188,9 +188,9 @@ class cosmo_MadauDickinsonRedshift(MadauDickinsonRedshift, multi_CosmoMixin):
         kappa = parameters["kappa"]
         z_peak = parameters["z_peak"]
         psi_of_z = (1 + redshift) ** gamma / (
-            1 + ((1 + redshift) / (1 + z_peak)) ** kappa
+            1 + ((1 + redshift) / (1 + z_peak)) ** (kappa+gamma)
         )
-        psi_of_z *= 1 + (1 + z_peak) ** (-kappa)
+        psi_of_z *= 1 + (1 + z_peak) ** (-kappa-gamma)
         return psi_of_z
 
     def __call__(self, dataset, **kwargs):
