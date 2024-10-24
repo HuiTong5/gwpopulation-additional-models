@@ -126,12 +126,13 @@ class cosmo_SinglePeakSmoothedMassDistribution(SinglePeakSmoothedMassDistributio
                     "{self.__class__}: mmax ({mmax}) > self.mmax ({self.mmax})"
                 )
         delta_m = kwargs.get("delta_m", 0)
-        p_m1 = self.p_m1(samples, **kwargs, **self.kwargs)
+        p_m1 = self.p_m1(samples, **kwargs, **{'gaussian_mass_maximum': kwargs['mpp']+5*kwargs['sigpp']})
         p_q = self.p_q(samples, beta=beta, mmin=mmin, delta_m=delta_m)
         prob = p_m1 * p_q / jacobian # prob in detector frame
 
         return prob #detector frame mass probability p(m1d,q|dL, H0_m)
-        
+    
+
 class cosmo_MadauDickinsonRedshift(MadauDickinsonRedshift, multi_CosmoMixin):
     def __init__(self, z_max, cosmo_model, suffix=None):
         multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
