@@ -14,6 +14,7 @@ from wcosmo.utils import disable_units as wcosmo_disable_units
 from gwpopulation.models.mass import SinglePeakSmoothedMassDistribution
 from gwpopulation.models.redshift import MadauDickinsonRedshift
 from .eff_spin import Smoothed_transition_chi_eff, smoothed_uniform
+from .linear_redshift_mass import redshift_linear_SinglePeakSmoothedMassDistribution
 from gwpopulation.utils import powerlaw, truncnorm
 
 
@@ -241,3 +242,60 @@ class cosmo_Smoothed_transition_chi_eff(Smoothed_transition_chi_eff, multi_Cosmo
         p_chi = f_HM*(f_uniform*smoothed_uniform(samples['chi_eff'],w)+(1-f_uniform)*truncnorm(samples['chi_eff'], mu_chi_eff_high, 10**(log_sigma_chi_eff_high), 1, -1))+(1-f_HM)*truncnorm(samples['chi_eff'], mu_chi_eff_low, 10**(log_sigma_chi_eff_low), 1, -1)
         
         return p_chi # detector frame chi_eff probability, p(chi_eff| m1d, dL, H0_s)
+
+class cosmo_linear_redshift_SinglePeakSmoothedMassDistribution(redshift_linear_SinglePeakSmoothedMassDistribution, multi_CosmoMixin):
+    @property
+    def variable_names(self):
+        vars = getattr(
+            self.primary_model,
+            "variable_names",
+            inspect.getfullargspec(self.primary_model).args[1:],
+        )
+        vars += ["beta", "delta_m"]
+        vars += self.cosmology_names
+        vars = set(vars).difference(self.kwargs.keys())
+        return vars
+
+    def __init__(self, cosmo_model, suffix=None, mmin=2, mmax=100, cache=False):
+        redshift_linear_SinglePeakSmoothedMassDistribution.__init__(self, mmin=mmin, mmax=mmax, cache=cache)
+        multi_CosmoMixin.__init__(self, cosmo_model=cosmo_model, suffix=suffix)
+
+    def __call__(self, dataset, *args, **kwargs):
+        cosmo_parameters = dict()
+        for key in self.cosmology_names:
+            cosmo_parameters[key]=kwargs.pop(key)
+        wcosmo_disable_units()
+        # cosmo = available['Planck15']
+        # print(kwargs['beta'])
+        # print(kwargs['H0'])
+        # print(cosmo_parameters)
+        cosmo = self.cosmology(cosmo_parameters)
+        jacobian = xp.ones(dataset["mass_1_detector"].shape)
+        samples=dict()
+         #detector to source frame
+        samples['redshift'] = z_at_value(
+                cosmo.luminosity_distance,
+                dataset["luminosity_distance"],
+            )
+        samples['mass_1'] = dataset['mass_1_detector']/(1+samples['redshift'])
+        jacobian *= (1+samples['redshift']) # m1_dector/m1_source
+        samples['mass_ratio'] = dataset['mass_ratio']
+
+        beta = kwargs.pop("beta")
+        mmin = kwargs.get("mmin", self.mmin)
+        mmax = kwargs.get("mmax", self.mmax)
+        if "jax" not in xp.__name__:
+            if mmin < self.mmin:
+                raise ValueError(
+                    "{self.__class__}: mmin ({mmin}) < self.mmin ({self.mmin})"
+                )
+            if mmax > self.mmax:
+                raise ValueError(
+                    "{self.__class__}: mmax ({mmax}) > self.mmax ({self.mmax})"
+                )
+        delta_m = kwargs.get("delta_m", 0)
+        p_m1 = self.p_m1(samples, **kwargs, **{'gaussian_mass_maximum': 100})
+        p_q = self.p_q(samples, beta=beta, mmin=mmin, delta_m=delta_m)
+        prob = p_m1 * p_q / jacobian # prob in detector frame
+
+        return prob #detector frame mass probability p(m1d,q|dL, H0_m)
